@@ -1,4 +1,4 @@
-#Текущее время в UTC
+#РўРµРєСѓС‰РµРµ РІСЂРµРјСЏ РІ UTC
 function getUTCNow() {
     return (Get-Date).ToUniversalTime().ToString("yyyy-MM-dd HH:mm:ss")
 }
@@ -12,9 +12,9 @@ function varDump() {
 }
 
 
-#выводит сообщение в лог файл
-#пришлось взять идиотское название, т.к. в каком-то месте у меня вызов Log както конфликтнул с 
-#Get-Log от VMWare
+#РІС‹РІРѕРґРёС‚ СЃРѕРѕР±С‰РµРЅРёРµ РІ Р»РѕРі С„Р°Р№Р»
+#РїСЂРёС€Р»РѕСЃСЊ РІР·СЏС‚СЊ РёРґРёРѕС‚СЃРєРѕРµ РЅР°Р·РІР°РЅРёРµ, С‚.Рє. РІ РєР°РєРѕРј-С‚Рѕ РјРµСЃС‚Рµ Сѓ РјРµРЅСЏ РІС‹Р·РѕРІ Log РєР°РєС‚Рѕ РєРѕРЅС„Р»РёРєС‚РЅСѓР» СЃ 
+#Get-Log РѕС‚ VMWare
 function spooLog()
 {
 	param
@@ -31,7 +31,7 @@ function spooLog()
 	Write-Host $now $msg
 }
 
-#для совместимости оставим это, чтобы не переписывать все остальные скрипты, которым не нужен VMWare
+#РґР»СЏ СЃРѕРІРјРµСЃС‚РёРјРѕСЃС‚Рё РѕСЃС‚Р°РІРёРј СЌС‚Рѕ, С‡С‚РѕР±С‹ РЅРµ РїРµСЂРµРїРёСЃС‹РІР°С‚СЊ РІСЃРµ РѕСЃС‚Р°Р»СЊРЅС‹Рµ СЃРєСЂРёРїС‚С‹, РєРѕС‚РѕСЂС‹Рј РЅРµ РЅСѓР¶РµРЅ VMWare
 function Log()
 {
 	param
@@ -43,7 +43,7 @@ function Log()
 }
 
 
-#выводит сообщение об ошибке в лог файл
+#РІС‹РІРѕРґРёС‚ СЃРѕРѕР±С‰РµРЅРёРµ РѕР± РѕС€РёР±РєРµ РІ Р»РѕРі С„Р°Р№Р»
 function errorLog()
 {
 	param
@@ -56,23 +56,23 @@ function errorLog()
 		$now=Get-Date
 	}
 
-	#если логфайл есть, то пишем его
+	#РµСЃР»Рё Р»РѕРіС„Р°Р№Р» РµСЃС‚СЊ, С‚Рѕ РїРёС€РµРј РµРіРѕ
 	if ($global:logfile) {
 		"$now ERROR: $msg" | Out-File -filePath "$global:logfile" -append -encoding Default
 	}
 
-	#если есть логфайл для ошибок - пишем его
+	#РµСЃР»Рё РµСЃС‚СЊ Р»РѕРіС„Р°Р№Р» РґР»СЏ РѕС€РёР±РѕРє - РїРёС€РµРј РµРіРѕ
 	if ($global:errorLogfile) {
 		"$now $msg" | Out-File -filePath "$global:errorLogfile" -append -encoding Default
 	}
 
 
-	#выставляем флажок что была ошибка
+	#РІС‹СЃС‚Р°РІР»СЏРµРј С„Р»Р°Р¶РѕРє С‡С‚Рѕ Р±С‹Р»Р° РѕС€РёР±РєР°
 	$global:scriptErrorsFlag = 1
 
 	Write-Host -foregroundColor red $now "ERROR:" $msg
 
-	#если есть массив ошибок - добавляем в него
+	#РµСЃР»Рё РµСЃС‚СЊ РјР°СЃСЃРёРІ РѕС€РёР±РѕРє - РґРѕР±Р°РІР»СЏРµРј РІ РЅРµРіРѕ
 	if (Test-Path variable:global:scriptErrorsArray) {
 		$global:scriptErrorsArray[$msg]++;
 
@@ -96,7 +96,7 @@ function errorLog()
     	}
 }
 
-#выводит сообщение об ошибке в лог файл
+#РІС‹РІРѕРґРёС‚ СЃРѕРѕР±С‰РµРЅРёРµ РѕР± РѕС€РёР±РєРµ РІ Р»РѕРі С„Р°Р№Р»
 function warningLog()
 {
 	param
@@ -109,29 +109,29 @@ function warningLog()
 		$now=Get-Date
 	}
 
-    #если логфайл есть, то пишем его
+    #РµСЃР»Рё Р»РѕРіС„Р°Р№Р» РµСЃС‚СЊ, С‚Рѕ РїРёС€РµРј РµРіРѕ
 	if ($global:logfile) {
 		"$now WARNING: $msg" | Out-File -filePath "$global:logfile" -append -encoding Default
 	}
 
-    #если есть логфайл для ошибок - пишем его
+    #РµСЃР»Рё РµСЃС‚СЊ Р»РѕРіС„Р°Р№Р» РґР»СЏ РѕС€РёР±РѕРє - РїРёС€РµРј РµРіРѕ
 	if ($global:warningLogfile) {
 		"$now $msg" | Out-File -filePath "$global:warningLogfile" -append -encoding Default
 	}
 
-    #если есть массив ошибок - добавляем в него
+    #РµСЃР»Рё РµСЃС‚СЊ РјР°СЃСЃРёРІ РѕС€РёР±РѕРє - РґРѕР±Р°РІР»СЏРµРј РІ РЅРµРіРѕ
     if ($global:scriptWarningsArray) {
         $global:scriptWarningsArray += $msg
     }
 
-    #выставляем флажок что была ошибка
+    #РІС‹СЃС‚Р°РІР»СЏРµРј С„Р»Р°Р¶РѕРє С‡С‚Рѕ Р±С‹Р»Р° РѕС€РёР±РєР°
     $global:scriptWarningsFlag = 1
 
 	Write-Host -foregroundColor Yellow $now "WARNING:" $msg
 }
 
 
-#выводит сообщение об ошибке в лог файл
+#РІС‹РІРѕРґРёС‚ СЃРѕРѕР±С‰РµРЅРёРµ РѕР± РѕС€РёР±РєРµ РІ Р»РѕРі С„Р°Р№Р»
 function debugLog()
 {
 	param
@@ -285,7 +285,7 @@ function New-SWRandomPassword {
 }
 
 Function TimedPrompt($prompt,$secondsToWait){	
-	#чистим буфер нажатий
+	#С‡РёСЃС‚РёРј Р±СѓС„РµСЂ РЅР°Р¶Р°С‚РёР№
 	while ($host.UI.RawUI.KeyAvailable) {
 		$null=$host.UI.RawUI.ReadKey("NoEcho,IncludeKeyUp,IncludeKeyDown")
 		start-sleep -milliseconds 50
@@ -321,13 +321,13 @@ Function TimedPrompt($prompt,$secondsToWait){
 }
 
 
-#приводит телефон к виду +7(987)654-3210
+#РїСЂРёРІРѕРґРёС‚ С‚РµР»РµС„РѕРЅ Рє РІРёРґСѓ +7(987)654-3210
 function correctMobile() {
 	param (
 		[string]$number
 	)
 
-	#убираем пробелы и вообще все
+	#СѓР±РёСЂР°РµРј РїСЂРѕР±РµР»С‹ Рё РІРѕРѕР±С‰Рµ РІСЃРµ
 	if ($number.Length -le 3) {
 		return $number
 	}
@@ -335,7 +335,7 @@ function correctMobile() {
 	$number=$number.Replace(' ','').Replace('-','').Replace('.','').Replace('+','')
 	#Log($original+": clean ["+$number+"]")
 
-	#проверяем что цифр 11	
+	#РїСЂРѕРІРµСЂСЏРµРј С‡С‚Рѕ С†РёС„СЂ 11	
 	#if ( -not ($number.Replace('+','').Replace('(','').Replace(')','').Length -eq 11)) {
 		#Log($original+": numbers ["+$number.Replace('+','').Replace('(','').Replace(')','')+"]")
 		#Log($original+": numberscount ["+$number.Replace('+','').Replace('(','').Replace(')','').Length+"]")
@@ -361,7 +361,7 @@ function correctMobile() {
 			$number="7"+$number.Substring(1)			
 		}
 
-		#проверяем что скобочки есть и они расставлены правильно
+		#РїСЂРѕРІРµСЂСЏРµРј С‡С‚Рѕ СЃРєРѕР±РѕС‡РєРё РµСЃС‚СЊ Рё РѕРЅРё СЂР°СЃСЃС‚Р°РІР»РµРЅС‹ РїСЂР°РІРёР»СЊРЅРѕ
 		$leftBracket=$number.IndexOf("(")
 		$rightBracket=$number.IndexOf(")")
 		#$leftBracket,$rightBracket
@@ -375,7 +375,7 @@ function correctMobile() {
 			$rightBracket=$number.IndexOf(")")
 		}
 
-		#проверяем знак тире
+		#РїСЂРѕРІРµСЂСЏРµРј Р·РЅР°Рє С‚РёСЂРµ
 		$minusLeft=$number.Substring(0,$rightBracket+4)
 		$minusRight=$number.Substring($rightBracket+4)
 	 	$number = $minusLeft+'-'+$minusRight
@@ -385,9 +385,9 @@ function correctMobile() {
 
 }
 
-#Разбивает строку на список телефонов через запятую
-#каждому телефону проводит коррекцию написания
-#собирает обратно обрезая невлезающие в 64 символа
+#Р Р°Р·Р±РёРІР°РµС‚ СЃС‚СЂРѕРєСѓ РЅР° СЃРїРёСЃРѕРє С‚РµР»РµС„РѕРЅРѕРІ С‡РµСЂРµР· Р·Р°РїСЏС‚СѓСЋ
+#РєР°Р¶РґРѕРјСѓ С‚РµР»РµС„РѕРЅСѓ РїСЂРѕРІРѕРґРёС‚ РєРѕСЂСЂРµРєС†РёСЋ РЅР°РїРёСЃР°РЅРёСЏ
+#СЃРѕР±РёСЂР°РµС‚ РѕР±СЂР°С‚РЅРѕ РѕР±СЂРµР·Р°СЏ РЅРµРІР»РµР·Р°СЋС‰РёРµ РІ 64 СЃРёРјРІРѕР»Р°
 function correctPhonesList() {
 	param
 	(
@@ -412,13 +412,13 @@ function setGroupByDepartment() {
 		[string]$department,
 		[string]$OUDN
 	)
-	#добваляем новых
+	#РґРѕР±РІР°Р»СЏРµРј РЅРѕРІС‹С…
 	foreach ($user in Get-ADUser -Filter {department -eq $department} -SearchBase $OUDN) {
 		#Write-Host -ForegroundColor green $user
 		Add-ADGroupMember -Identity $group -Member $user.samaccountname -ErrorAction SilentlyContinue -Confirm:$false
 	}
 
-	#удаляем лишних
+	#СѓРґР°Р»СЏРµРј Р»РёС€РЅРёС…
 	Get-ADGroupMember -Identity $group| Where-Object { $_.objectClass -eq 'user' } | Get-ADUser -Properties * | ForEach-Object {
 		if( $_.department -ne $department) {
 			#Write-Host -ForegroundColor red "$( $_ ) $( $_.department )"
@@ -435,13 +435,13 @@ function setGroupBy2Departments() {
 		[string]$department2,
 		[string]$OUDN
 	)
-	#добваляем новых
+	#РґРѕР±РІР°Р»СЏРµРј РЅРѕРІС‹С…
 	foreach ($user in Get-ADUser -Filter {(department -eq  $department1) -or (department -eq $department2)} -SearchBase $OUDN) {
 		#Write-Host -ForegroundColor green $user
 		Add-ADGroupMember -Identity $group -Member $user.samaccountname -ErrorAction SilentlyContinue -Confirm:$false
 	}
 
-	#удаляем лишних
+	#СѓРґР°Р»СЏРµРј Р»РёС€РЅРёС…
 	Get-ADGroupMember -Identity $group| Where-Object { $_.objectClass -eq 'user' } | Get-ADUser -Properties * | ForEach-Object {
 		if( ($_.department -ne $department1) -and ($_.department -ne $department2)) {
 			#Write-Host -ForegroundColor red "$( $_ ) $( $_.department )"

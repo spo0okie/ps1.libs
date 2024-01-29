@@ -90,7 +90,8 @@ function requestInventoryData() {
 	(
 		[string]$uri,
 		[string]$method="GET",
-		$data=@{}
+		$data=@{},
+		$raw=$false
 	)
 	#пробуем сделать запрос
 	try { 
@@ -141,7 +142,12 @@ function requestInventoryData() {
         if (@(200,201) -contains $response.StatusCode.Value__) {
 
 			debugLog("$($method): $uri - OK")
-			return responseFormatParse $response $body
+			if ($raw) {
+				return $body
+			} else {
+				return responseFormatParse $response $body
+			}
+			
 
 		} 
 
@@ -151,7 +157,7 @@ function requestInventoryData() {
 
         $response = $_.Exception.Response
 
-        if ($response -eq $null) {
+        if ($null -eq $response) {
 
 			Write-host $_.Exception
 			errorLog $_.Exception.Message
@@ -190,6 +196,18 @@ function parseObjectId() {
     } catch {
         return -1;
     }	
+}
+
+
+function callInventoryRestMethod() {
+	param(
+		[string]$method,
+		[string]$model,
+		[string]$action,
+		$params=@{},
+		$raw=$false
+	)
+	return requestInventoryData "$($global:inventory_RESTapi_URL)/$($model)/$action" $method $params $raw
 }
 
 #возвращает ID по модели(типу данных) и ее имени
@@ -244,20 +262,22 @@ function setInventoryData() {
 	}
 }
 
+#заливает объект методом Push (на месте инвентори разберется, это новый или обновить только надо)
+function pushInventoryData() {
+	param
+	(
+		[string]$model,
+		$data
+	)
+    
+   	return requestInventoryData "$($global:inventory_RESTapi_URL)/$model/push"	"POST"   $data
+}
+
 #возвращает объект компа в инвентаризации по FQDN
 function getInventoryFqdnComp($fqdn) {
 	if ( -not $fqdn) {
 		return $false
 	}
 
-	#разбираем FQDN на хостнейм и домен
-	if ($fqdn.split('.').count -gt 1 ) {
-		$strComp=$fqdn.split('.')[0]
-		$strDomain=$fqdn.split('.')[1]
-	} else {
-		$strComp=$fqdn
-		$strDomain=$inventory_defaultDomain
-	}
-
-	return getInventoryObj 'comps' "$($strDomain)/$($strComp)"
+	return getInventoryObj 'comps' $fqdn
 }
