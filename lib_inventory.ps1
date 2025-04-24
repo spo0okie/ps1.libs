@@ -1,6 +1,8 @@
 ﻿Add-Type -AssemblyName System.Web
 
-
+#если мы не подгружаем все компы, то все равно объявляем пустой массив, чтобы можно было проверить подгружены ли
+$global:InvComps=@();
+$global:InvRequestTimeout=10000;
 #отладочная инфа по HTTP(s) запросу
 function httpResponseDebugData() {
 	param
@@ -35,7 +37,7 @@ function httpResponseDebugData() {
 #формирует словарь заголовков с BASIC-Auth
 function authHeader() {
 	param (
-		[string]$user,
+		[string]$user,                                                                                                                                                                  
 		[string]$password
 	)
 
@@ -107,7 +109,8 @@ function requestInventoryData() {
 		$request = [System.Net.WebRequest]::Create($uri)
         $request.Headers.Add('Authorization',$auth)
         $request.Method=$method;
-        $request.Timeout=10000;
+        $request.Accept="application/json";
+        $request.Timeout=$global:InvRequestTimeout;
 
         # Если нам нужно отправить тело запроса
         if (@('PUT','POST','PATCH') -contains $method) {
@@ -168,9 +171,9 @@ function requestInventoryData() {
 			$streamReader = New-Object System.IO.StreamReader $responseStream
 			$body = $streamReader.ReadToEnd()
 			if ($_.Exception.Response.StatusCode.Value__ -eq 404) {
-				errorLog("$($method) $($uri) - ERR $($_.Exception.Response.StatusCode.Value__) // Not found: $($body)")
+				if (-not $global:skip404errors) {errorLog("$($method) $($uri) - ERR $($_.Exception.Response.StatusCode.Value__) // Not found: $($body)")}
 			} elseif ($_.Exception.Response.StatusCode.Value__ -eq 422) {
-				errorLog("$($method) $($uri) - ERR $($_.Exception.Response.StatusCode.Value__) // Data vaidation fail: $($body) //DATA: $($sendBody)")
+				errorLog("$($method) $($uri) - ERR $($_.Exception.Response.StatusCode.Value__) // Data validation fail: $($body) //DATA: $($sendBody)")
 			} else {
 				errorLog("$($method) $($uri) - ERR $($_.Exception.Response.StatusCode.Value__) // $($_.Exception.Message)`n$(httpResponseDebugData $response $body)")
 			}
@@ -246,13 +249,15 @@ function setInventoryData() {
 		$data
 	)
     
-    try { 
-        $id = $data['id']
-    } catch {
-        $id = -1
-    }
+	try { 
+		$id = [int]$data['id']
+	} catch {
+		$id = -1
+		warningLog("Error reading inventory ID!")
+		$data
+	}
 
-	if ([int]$id -gt 0) {
+	if ($id -gt 0) {
 		#ИД есть - обновляем
 		return requestInventoryData "$($global:inventory_RESTapi_URL)/$model/$id"	"PUT"   $data
 	} else {
@@ -275,9 +280,135 @@ function pushInventoryData() {
 
 #возвращает объект компа в инвентаризации по FQDN
 function getInventoryFqdnComp($fqdn) {
-	if ( -not $fqdn) {
+	if ([string]::IsNullOrWhiteSpace($fqdn) -or ($fqdn -eq $false)) {
+		return $false
+	}
+    #пробуем кэш
+    if ($global:invComps.length -gt 0) {
+        $fqdn=$fqdn.ToLower();
+	    foreach ($comp in $global:InvComps) {
+		    if ([string]($comp.fqdn).ToLower() -eq $fqdn) {
+			    return $comp;
+                break;
+		    }
+	    }
+    }
+	return getInventoryObj 'comps' $fqdn
+}
+
+#проверяет что у переданного $comp (объект из инвентори) имеется нужный FQDN и нужные IP адреса
+function compareInventoryFqdnIpComp($comp,$fqdn,$ips) {
+	if ([string]::IsNullOrWhiteSpace($fqdn) -or ($fqdn -eq $false)) {
+		return $false
+	}
+	if ( -not $ips) {
 		return $false
 	}
 
+    #если у нас FQDN
+    if ( $fqdn.split('.').length -gt 1) {
+        if ( -not ([string]($comp.fqdn).ToLower() -eq $fqdn)) {
+            return $false;
+        }
+    } else {
+    #иначе у нас hostname
+        #если имя не совпадает, то неудача
+        if ( -not ([string]($comp.name).ToLower() -eq $fqdn)) {
+            return $false;
+        }
+    }
+
+    #список IP компа в инвентори
+    $compIps=$comp.ip.split("`n")
+    #проверяем что каждый из нужных IP есть у компа
+    foreach ($ip in $ips) {
+        if ( -not $ip.length) {continue;}
+        if ( -not ($compIps -contains $ip)) {return $false;}
+    }
+
+	return $true;
+}
+
+#возвращает объект компа в инвентаризации по FQDN и при наличии всех переданных IP
+function getInventoryFqdnIpComp($fqdn,$ips) {
+	if ([string]::IsNullOrWhiteSpace($fqdn) -or ($fqdn -eq $false)) {
+		return $false
+	}
+	if ( -not $ips) {
+		return $false
+	}
+    #пробуем кэш
+    if ($global:invComps.length -gt 0) {
+        $fqdn=$fqdn.ToLower();
+	    foreach ($comp in $global:InvComps) {
+		    if (compareInventoryFqdnIpComp $comp $fqdn $ips) {
+                return $comp;
+            }
+	    }
+    }
 	return getInventoryObj 'comps' $fqdn
 }
+
+function inventoryCacheAllComps() {
+    $global:InvComps=callInventoryRestMethod 'GET' 'comps' 'index' @{'per-page'=0; 'expand'='fqdn,domain'}
+    if ($global:InvComps -eq $false) {      
+        warningLog "Operating Systems loading error"
+    } else {
+        spooLog "$( $global:invComps.length ) Operating Systems loaded."
+    }
+}
+
+
+#посчитать сколько в инвентори узлов с заданным FQDN
+function countInventoryFqdnComps() {
+	param(
+		[string]$fqdn
+	)
+	$fqdn=$fqdn.ToLower();
+	$count=0;
+	foreach ($comp in $global:InvComps) {
+		if ($fqdn -eq $comp.fqdn.ToLower()) {
+			$count++;
+		}
+	}
+	return $count;
+}
+
+#посчитать сколько в инвентори узлов с заданным FQDN
+function countInventoryFqdnIPComps() {
+	param(
+		[string]$fqdn,
+        $ips
+	)
+	$fqdn=$fqdn.ToLower();
+	$count=0;
+	foreach ($comp in $global:InvComps) {
+	    if (compareInventoryFqdnIpComp $comp $fqdn $ips) {
+			$count++;
+		}
+	}
+	return $count;
+}
+
+#найти в инвентори узел с VM.UUID
+function searchInvByVMUUID() {
+	param([string]$uuid)
+    $result=@()
+	$json="{`"VMWare.UUID`":`"$uuid`"}"
+	foreach ($comp in $global:InvComps) {
+		$links=[string]($comp.external_links);
+		if (($links).contains($json)) {
+			$result+=$comp;
+		}
+	}
+    if ($result.Length -eq 1) {
+        return $result[0];
+    }
+
+    if ($result.Length -gt 1) {
+		errorLog "VM: $($hostname) (VM: $($_.Name); UUID: $($uuid); IPS: $($ips -join ' ')) Имеется несколько UUID в инвентори $($result.Length): $(($result | Select-Object -ExpandProperty id) -join ', ')"
+    }
+    
+	return $false;
+}
+
