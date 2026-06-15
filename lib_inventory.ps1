@@ -1,6 +1,6 @@
 ﻿Add-Type -AssemblyName System.Web
 
-#если мы не подгружаем все компы, то все равно объявляем пустой массив, чтобы можно было проверить подгружены ли
+#массив подгруженных компов из инвентори
 $global:InvComps=@();
 $global:InvRequestTimeout=10000;
 #отладочная инфа по HTTP(s) запросу
@@ -116,12 +116,12 @@ function requestInventoryData() {
         if (@('PUT','POST','PATCH') -contains $method) {
 
             #формируем тело запроса
-            $sendBody = paramsString $data
+            $sendBody = $data|ConvertTo-Json -Compress
             #собираем набор байт для потоковой передачи
             $binaryBody=[System.Text.Encoding]::UTF8.GetBytes($sendBody);
 
             #выставляем параметры тела запроса
-            $request.ContentType="application/x-www-form-urlencoded"
+            $request.ContentType="application/json"
             $request.ContentLength=$binaryBody.Length;
 
             #передаем тело запроса
@@ -188,7 +188,8 @@ function requestInventoryData() {
 
 }
 
-
+#вытаскивает ID объекта из ответа инвентори
+#если ID не найден, то возвращает -1
 function parseObjectId() {
 	param
 	(
@@ -201,7 +202,8 @@ function parseObjectId() {
     }	
 }
 
-
+#выполнить REST запрос к инвентори
+#возвращает ответ в виде объекта или в виде сырых данных
 function callInventoryRestMethod() {
 	param(
 		[string]$method,
@@ -265,7 +267,7 @@ function setInventoryData() {
         $data.Remove('id'); #убираем невалидный ID
 		return requestInventoryData "$($global:inventory_RESTapi_URL)/$model"       "POST"	$data	
 	}
-}
+}
 
 #заливает объект методом Push (на месте инвентори разберется, это новый или обновить только надо)
 function pushInventoryData() {
@@ -394,7 +396,7 @@ function countInventoryFqdnIPComps() {
 function searchInvByVMUUID() {
 	param([string]$uuid)
     $result=@()
-	$json="{`"VMWare.UUID`":`"$uuid`"}"
+	$json="`"VMWare.UUID`":`"$uuid`""
 	foreach ($comp in $global:InvComps) {
 		$links=[string]($comp.external_links);
 		if (($links).contains($json)) {
@@ -411,4 +413,28 @@ function searchInvByVMUUID() {
     
 	return $false;
 }
+
+
+#найти в инвентори узел с VM.MoRef
+function searchInvByVMMoRef() {
+	param([string]$uuid)
+    $result=@()
+	$json="`"VMWare.MoRef`":`"$uuid`""
+	foreach ($comp in $global:InvComps) {
+		$links=[string]($comp.external_links);
+		if (($links).contains($json)) {
+			$result+=$comp;
+		}
+	}
+    if ($result.Length -eq 1) {
+        return $result[0];
+    }
+
+    if ($result.Length -gt 1) {
+		errorLog "VM: $($hostname) (VM: $($_.Name); MoRef: $($uuid); IPS: $($ips -join ' ')) Имеется несколько MoRef в инвентори $($result.Length): $(($result | Select-Object -ExpandProperty id) -join ', ')"
+    }
+    
+	return $false;
+}
+
 

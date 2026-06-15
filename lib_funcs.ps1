@@ -31,6 +31,8 @@ function spooLog()
 	Write-Host $now $msg
 }
 
+
+
 #для совместимости оставим это, чтобы не переписывать все остальные скрипты, которым не нужен VMWare
 function Log()
 {
@@ -75,25 +77,17 @@ function errorLog()
 	#если есть массив ошибок - добавляем в него
 	if (Test-Path variable:global:scriptErrorsArray) {
 		$global:scriptErrorsArray[$msg]++;
+   	}
+}
 
-		#$md5 = New-Object -TypeName System.Security.Cryptography.MD5CryptoServiceProvider
-		#$utf8 = New-Object -TypeName System.Text.UTF8Encoding
-		#$hash = ([System.BitConverter]::ToString($md5.ComputeHash($utf8.GetBytes($msg)))).replace("-","").ToLower()
-
-		#Write-Host -foregroundColor blue "Errors count:", $global:scriptErrorsArray.length
-		#for ($i = 0; $i -le ($global:scriptErrorsArray.length - 1); $i ++) {
-		#	if ($global:scriptErrorsArray[$i].hash -eq $hash) {
-		#		$global:scriptErrorsArray[$i].count++;
-		#		return
-		#	}
-		#}
-		#$global:scriptErrorsArray+=@{
-		#	msg=$msg
-		#	hash=$hash
-		#	count=1
-		#};
-		#Write-Host -foregroundColor blue "Errors count:", $global:scriptErrorsArray.length
-    	}
+function halt()
+{
+	param
+	(
+		[string]$msg = "Script halted"
+	)
+	errorLog($msg)
+	exit 1
 }
 
 #выводит сообщение об ошибке в лог файл
