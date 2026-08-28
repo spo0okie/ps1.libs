@@ -23,7 +23,7 @@ function httpResponseDebugData() {
 				':',
 				$response.Headers[$HeaderKey]
 			)
-		}							
+		}
 	}
 	$debugMsg = -join (
 		$debugMsg , "`n",
@@ -37,16 +37,16 @@ function httpResponseDebugData() {
 #формирует словарь заголовков с BASIC-Auth
 function authHeader() {
 	param (
-		[string]$user,                                                                                                                                                                  
+		[string]$user,
 		[string]$password
 	)
 
 	$pair = "$($user):$($password)"
 	$encodedCreds = [System.Convert]::ToBase64String([System.Text.Encoding]::ASCII.GetBytes($pair))
-	return "Basic $encodedCreds"	
+	return "Basic $encodedCreds"
 }
 
-#собирает строку параметров для передачи в GET или 
+#собирает строку параметров для передачи в GET или
 function paramsString() {
     param (
         $data
@@ -57,7 +57,7 @@ function paramsString() {
     foreach ($param in $data.keys) {
         $params += "$($param)=$($data[$param])"
     }
-    
+
     return $params -join "&"
 }
 
@@ -96,13 +96,13 @@ function requestInventoryData() {
 		$raw=$false
 	)
 	#пробуем сделать запрос
-	try { 
+	try {
         #если у нас параметры в командной строке - докидываем
         if (@('GET') -contains $method) {
             $reqParams=paramsString $data
             $uri="$($uri)?$($reqParams)"
-        }		
-        
+        }
+
         #авторизация
         $auth = authHeader $inventory_user_login $inventory_user_password
 
@@ -130,14 +130,14 @@ function requestInventoryData() {
             $requestStream.Flush();
             $requestStream.Close();
 
-        } 
+        }
 
         #получаем ответ
-		$response = $request.GetResponse()		
+		$response = $request.GetResponse()
         #получаем поток отвтета
 	    $responseStream = $response.GetResponseStream()
         #читалка потока
-        $streamReader = New-Object System.IO.StreamReader $responseStream       
+        $streamReader = New-Object System.IO.StreamReader $responseStream
 	    $body = $streamReader.ReadToEnd()
         $responseStream.Close()
 
@@ -150,9 +150,9 @@ function requestInventoryData() {
 			} else {
 				return responseFormatParse $response $body
 			}
-			
 
-		} 
+
+		}
 
         errorLog("$($method) $uri - OK ($($response.StatusCode.Value__))`n$(httpResponseDebugData $response $body)")
 
@@ -199,7 +199,7 @@ function parseObjectId() {
         return $obj.id;
     } catch {
         return -1;
-    }	
+    }
 }
 
 #выполнить REST запрос к инвентори
@@ -250,8 +250,8 @@ function setInventoryData() {
 		[string]$model,
 		$data
 	)
-    
-	try { 
+
+	try {
 		$id = [int]$data['id']
 	} catch {
 		$id = -1
@@ -265,7 +265,7 @@ function setInventoryData() {
 	} else {
 		#ИД не найден - создаем
         $data.Remove('id'); #убираем невалидный ID
-		return requestInventoryData "$($global:inventory_RESTapi_URL)/$model"       "POST"	$data	
+		return requestInventoryData "$($global:inventory_RESTapi_URL)/$model"       "POST"	$data
 	}
 }
 
@@ -276,7 +276,7 @@ function pushInventoryData() {
 		[string]$model,
 		$data
 	)
-    
+
    	return requestInventoryData "$($global:inventory_RESTapi_URL)/$model/push"	"POST"   $data
 }
 
@@ -353,7 +353,7 @@ function getInventoryFqdnIpComp($fqdn,$ips) {
 
 function inventoryCacheAllComps() {
     $global:InvComps=callInventoryRestMethod 'GET' 'comps' 'index' @{'per-page'=0; 'expand'='fqdn,domain'}
-    if ($global:InvComps -eq $false) {      
+    if ($global:InvComps -eq $false) {
         warningLog "Operating Systems loading error"
     } else {
         spooLog "$( $global:invComps.length ) Operating Systems loaded."
@@ -395,23 +395,34 @@ function countInventoryFqdnIPComps() {
 #найти в инвентори узел с VM.UUID
 function searchInvByVMUUID() {
 	param([string]$uuid)
-    $result=@()
-	$json="`"VMWare.UUID`":`"$uuid`""
+
+	$result=@()								#массив результатов
+	$json="`"VMWare.UUID`":`"$uuid`""		#искомая строка для поля внешних ссылок
+	$archivedFound=0						#количество найденных архивированных экземпляров
+
 	foreach ($comp in $global:InvComps) {
 		$links=[string]($comp.external_links);
 		if (($links).contains($json)) {
-			$result+=$comp;
+			if ($comp.archived) {			#если ОС в архиве, то
+				$archivedFound++			#увеличиваем счетчик архивных экзепляров
+			} else {						#иначе
+				$result+=$comp;				#запоминаем ОС
+			}
 		}
 	}
-    if ($result.Length -eq 1) {
+    if ($result.Length -eq 1) {				#найти вообще должны ровно 1
         return $result[0];
     }
 
     if ($result.Length -gt 1) {
 		errorLog "VM: $($hostname) (VM: $($_.Name); UUID: $($uuid); IPS: $($ips -join ' ')) Имеется несколько UUID в инвентори $($result.Length): $(($result | Select-Object -ExpandProperty id) -join ', ')"
     }
-    
-	return $false;
+
+    if ($archivedFound) {
+    	errorLog "VM: $($hostname) (VM: $($_.Name); UUID: $($uuid); IPS: $($ips -join ' ')) Отсутствуют активные UUID в инвентори, но есть $($archivedFound) архивных: возможно какую-то VM вернули в работу!"
+    }
+
+    return $false;
 }
 
 
@@ -433,8 +444,6 @@ function searchInvByVMMoRef() {
     if ($result.Length -gt 1) {
 		errorLog "VM: $($hostname) (VM: $($_.Name); MoRef: $($uuid); IPS: $($ips -join ' ')) Имеется несколько MoRef в инвентори $($result.Length): $(($result | Select-Object -ExpandProperty id) -join ', ')"
     }
-    
+
 	return $false;
 }
-
-

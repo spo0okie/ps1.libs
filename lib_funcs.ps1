@@ -1,4 +1,4 @@
-#Текущее время в UTC
+﻿#Текущее время в UTC
 function getUTCNow() {
     return (Get-Date).ToUniversalTime().ToString("yyyy-MM-dd HH:mm:ss")
 }
@@ -373,6 +373,36 @@ function correctMobile() {
 		$minusLeft=$number.Substring(0,$rightBracket+4)
 		$minusRight=$number.Substring($rightBracket+4)
 	 	$number = $minusLeft+'-'+$minusRight
+	}
+
+	return "+" + $number
+
+}
+
+#Разбивает строку на список телефонов через запятую
+#каждому телефону проводит коррекцию написания
+#приводит телефон к виду +7(987)654-3210
+function compactMobile() {
+	param (
+		[string]$number
+	)
+
+	$number=$number.Replace(' ','').Replace('-','').Replace('.','').Replace('+','').Replace('(','').Replace(')','')
+
+
+	#810375 -> +375XXX
+	if (
+		($number.Substring(0,3) -eq "810") -and	($number.Length -gt 11)	
+	) {
+		$number=$number.Substring(3)
+	}
+	
+
+	if (
+		($number.Length -eq 11)	-and ($number.Substring(0,1) -eq "8") 
+	) {
+		$number="7"+$number.Substring(1)			
+
 	}
 
 	return "+" + $number
