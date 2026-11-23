@@ -7,7 +7,7 @@ function LoadOUUser {
     )
     Write-Host "Searchin $login in $path"
 	$users = Get-ADUser -Filter {(sAMAccountName -like $login)} -SearchBase $path -properties Name,cn,sn,givenName,DisplayName,sAMAccountname,company,department,title,EmployeeNumber,mail,pager,mobile,telephoneNumber
-	$u_count = $users | measure 
+	$u_count = $users | measure
 	Write-Host -ForegroundColor Green "Найдено пользователей по запросу: $( $u_count.Count )"
 	if ( $u_count.count -eq 1) {
 		foreach($user in $users) {
@@ -121,7 +121,7 @@ function LoadUser([string]$login) {
 
 #создает пользователя с нужными параметрами
 function CreateADUser() {
-	param 
+	param
 	(
 		[string]$login,
 		[string]$name,
@@ -131,7 +131,7 @@ function CreateADUser() {
 		[string]$phone,
 		[string]$pager
 	)
-	
+
 	Write-Host "Добавляем пользователя $login / $name"
 	$name	=$name.trim()
 	$names	=$name.split(' ')
@@ -185,19 +185,19 @@ function DisableADUser() {
 
 	Write-Host -ForegroundColor Yellow "Перемещаем в $nu_path"
 	Move-ADobject $user -Targetpath $nu_path
-	
+
 	Log ("User <$($user.sAMAccountname)> deactivated sucessfully.")
 
 }
 
 #Сбрасывает пароль на переданный
 function UpdateADUserPwd() {
-	param 
+	param
 	(
 		[object]$user,
 		[string]$passwd
 	)
-	
+
 	$u_pass= ConvertTo-SecureString -AsPlainText $passwd -force
 	Set-ADAccountPassword $user -NewPassword $u_pass -Reset
 }
@@ -209,7 +209,7 @@ function GetADParent() {
     (
         [string]$path
     )
-    
+
     if ($path.Contains(',OU=')) {
         # - есть родительская OU
 
@@ -234,7 +234,7 @@ function PrepareOU() {
     }
 
     #целевой папки нет, тогда пробуем создать.
-    
+
     #Есть родительская?
     $parent = GetADParent $path;
     if ( -not (PrepareOU $parent)) {
@@ -247,6 +247,69 @@ function PrepareOU() {
 
     Write-Host -ForegroundColor Green "Creating New OU $ou_name in $parent"
     New-ADOrganizationalUnit -Name $ou_name -Path $parent
-    
+
     return [adsi]::Exists("LDAP://$path")
+}
+
+
+
+<#
+.SYNOPSIS
+Сверяет участников одной группы АД с целевым набором
+.DESCRIPTION
+Добавляет недостающих участников.
+Для остальных участников перед удалением вызывает переданный предикат, если у правила есть особые условия удаления.
+#>
+function SyncADGroupMembership {
+    [CmdletBinding(SupportsShouldProcess)]
+    param(
+        [Parameter(Mandatory)] [string]$Group,
+        [Parameter(Mandatory)] [AllowEmptyCollection()] [object[]]$DesiredMembers,
+        [scriptblock]$ShouldRemove = { param($Member) $true }
+    )
+
+    $currentMembers = @(Get-ADGroupMember -Identity $Group -ErrorAction Stop)
+    $currentIds = [System.Collections.Generic.HashSet[guid]]::new()
+    $desiredIds = [System.Collections.Generic.HashSet[guid]]::new()
+
+    #заполняем список целевых GUID пользователей
+    foreach ($member in $currentMembers) {
+        [void]$currentIds.Add([guid]$member.ObjectGUID)
+    }
+
+    #список пользователей на добавление
+    $toAdd = @(
+    	#перебираем целевой набор
+        foreach ($member in $DesiredMembers) {
+        	#добавлем пользователя в целевой набор GUID и если его нет в текущих,
+            if ($desiredIds.Add([guid]$member.ObjectGUID) -and -not $currentIds.Contains([guid]$member.ObjectGUID)) {
+                $member		#то он попадает в список на добавление
+            }
+        }
+    )
+
+    #список пользователей на удаление
+    $toRemove = @(
+    	#перебираем текущий набор
+        foreach ($member in $currentMembers) {
+        	#если пользователь не в целевом наборе, и предикат согласовывает удаление,
+            if (-not $desiredIds.Contains([guid]$member.ObjectGUID) -and (& $ShouldRemove $member)) {
+                $member 	#то пользователь попадает в список на удаление
+            }
+        }
+    )
+
+    #добавлем тех что нужно добавить
+    foreach ($member in $toAdd) {
+        if ($PSCmdlet.ShouldProcess($Group, "Добавить $($member.DistinguishedName)")) {
+            Add-ADGroupMember -Identity $Group -Members $member -Confirm:$false -ErrorAction Stop
+        }
+    }
+
+    #удлаляем тех что нужно удалить
+    foreach ($member in $toRemove) {
+        if ($PSCmdlet.ShouldProcess($Group, "Удалить $($member.DistinguishedName)")) {
+            Remove-ADGroupMember -Identity $Group -Members $member -Confirm:$false -ErrorAction Stop
+        }
+    }
 }
